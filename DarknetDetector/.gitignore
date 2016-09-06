@@ -1,0 +1,17 @@
+*.pro.user
+*.txt
+debug
+release
+Makefile*
+*.avi
+*.o
+1ACpro
+*.Debug
+*.Release
+.DS_Store
+*.stash
+moc_*
+*.png
+*.jpg
+*.mp4
+*.weights
