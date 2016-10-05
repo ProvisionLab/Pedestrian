@@ -30,7 +30,7 @@ void draw_bbox(image a, box bbox, int w, float r, float g, float b);
 void draw_label(image a, int r, int c, image label, const float *rgb);
 void write_label(image a, int r, int c, image *characters, char *string, float *rgb);
 void draw_detections(image im, int num, float thresh, box *boxes, float **probs, char **names, image *labels, int classes);
-void get_detection_bboxes(image im, int num, float thresh, box *boxes, float **probs, char **names, image *alphabet, int classes, image_pos *det_bboxes, int *size_det_bboxes);
+void get_detection_bboxes(image im, int num, float thresh, box *boxes, float **probs, int classes, image_pos *det_bboxes, int *size_det_bboxes);
 image image_distance(image a, image b);
 void scale_image(image m, float s);
 image crop_image(image im, int dx, int dy, int w, int h);

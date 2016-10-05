@@ -219,7 +219,7 @@ void draw_detections(image im, int num, float thresh, box *boxes, float **probs,
     }
 }
 
-void get_detection_bboxes(image im, int num, float thresh, box *boxes, float **probs, char **names, image *alphabet, int classes, image_pos *det_bboxes, int *size_det_bboxes)
+void get_detection_bboxes(image im, int num, float thresh, box *boxes, float **probs, int classes, image_pos *det_bboxes, int *size_det_bboxes)
 {
     *size_det_bboxes = 0;
     int i;
@@ -228,9 +228,8 @@ void get_detection_bboxes(image im, int num, float thresh, box *boxes, float **p
         int class = max_index(probs[i], classes);
         float prob = probs[i][class];
         if(prob > thresh){
-            //int width = pow(prob, 1./2.)*30+1;
-            int width = im.h * .012;
-            printf("%s: %.0f%%\n", names[class], prob*100);
+            int width = (int)pow(prob, 1./2.)*30+1;
+            //int width = im.h * .012;
             int offset = class*1 % classes;
             float red = get_color(2,offset,classes);
             float green = get_color(1,offset,classes);
@@ -261,10 +260,6 @@ void get_detection_bboxes(image im, int num, float thresh, box *boxes, float **p
             ++(*size_det_bboxes);
 
             draw_box_width(im, left, top, right, bot, width, red, green, blue);
-            if (alphabet) {
-                image label = get_label(alphabet, names[class]);
-                draw_label(im, top + width, left, label, rgb);
-            }
         }
     }
 }

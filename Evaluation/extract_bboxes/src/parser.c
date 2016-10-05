@@ -29,7 +29,6 @@
 #include "list.h"
 #include "option_list.h"
 #include "utils.h"
-#include "constants.h"
 
 typedef struct{
     char *type;
@@ -228,7 +227,8 @@ softmax_layer parse_softmax(list *options, size_params params)
 layer parse_region(list *options, size_params params)
 {
     int coords = option_find_int(options, "coords", 4);
-    int classes = option_find_int(options, "classes", NUM_CLASSES);
+    int classes = option_find_int(options, "classes", 1);
+    error("number of classes is harcoded!");
     int num = option_find_int(options, "num", 1);
 
     params.w = option_find_int(options, "side", params.w);
@@ -568,6 +568,7 @@ network parse_network_cfg(char *filename)
     n = n->next;
     int count = 0;
     free_section(s);
+
     while(n){
         params.index = count;
         fprintf(stderr, "%d: ", count);
