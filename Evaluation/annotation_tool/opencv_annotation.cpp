@@ -53,7 +53,6 @@ Adapted by: Puttemans Steven - April 2016 - Vectorize the process to enable bett
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
 
 #include <fstream>
 #include <iostream>
@@ -73,7 +72,7 @@ vector<Rect> get_annotations(Mat);
 
 // Public parameters
 Mat image;
-int roi_x0 = 0, roi_y0 = 0, roi_x1 = 0, roi_y1 = 0, num_of_rec = 0;
+int roi_x0 = 0, roi_y0 = 0, roi_x1 = 0, roi_y1 = 0;
 bool start_draw = false, stop = false;
 
 // Window name for visualisation purposes
@@ -307,12 +306,13 @@ int main( int argc, const char** argv )
 
     // Store the annotations, write to the output file
     for(int i = 0; i < (int)annotations.size(); i++){
-        output << filenames[i] << " " << annotations[i].size();
         for(int j=0; j < (int)annotations[i].size(); j++){
             Rect temp = annotations[i][j];
-            output << " " << temp.x << " " << temp.y << " " << temp.width << " " << temp.height;
+            output << i << " "
+                   << temp.x << " " << temp.y << " "
+                   << temp.x + temp.width << " " << temp.y + temp.height
+                   << std::endl;
         }
-        output << endl;
     }
 
     destroyWindow(window_name);
