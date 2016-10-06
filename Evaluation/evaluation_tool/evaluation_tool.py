@@ -1,8 +1,14 @@
 import shapely.ops
 import shapely.geometry
+import sys
 
-RESULTS_FILENAME = 'bboxes.txt'
-LABELS_FILENAME = 'bboxes_labeled.txt'
+if len(sys.argv) != 4:
+    print("usage {}: <processed bboxes> <raw bboxes> <thresh>".format(sys.argv[0]))
+    sys.exit()
+
+RESULTS_FILENAME = sys.argv[1]
+LABELS_FILENAME = sys.argv[2]
+THRESH = sys.argv[3]
 
 
 def get_bboxes_data(filename):
@@ -12,27 +18,47 @@ def get_bboxes_data(filename):
             frame, left, top, right, bottom = [int(x) for x in line.split()]
             bboxes_data.setdefault(frame, [])
             bboxes_data[frame].append((left, top, right, bottom))
-    return bboxes_data;
+    return bboxes_data
 
 
-def get_union(rect_list):
-    return shapely.ops.unary_union([shapely.geometry.box(bb[0], bb[1], bb[2], bb[3]) for bb in rect_list])
+def get_ratio(rect_bb_1, rect_bb_2):
+    boxes = [shapely.geometry.box(rect_bb[0], rect_bb[1], rect_bb[2], rect_bb[3]) for rect_bb in [rect_bb_1, rect_bb_2]]
+    intersection_area = boxes[0].intersection(boxes[1]).area
+    return boxes[0].intersection(boxes[1]).area / shapely.ops.unary_union(boxes).area \
+        if intersection_area else 0.0
 
 
-def calculate_overlap_ratio(results_rect_list, labels_rect_list):
-    if (not len(results_rect_list) and len(labels_rect_list)) or (len(results_rect_list) and not len(labels_rect_list)):
+def calculate_accuracy(results_rect_list, labels_rect_list):
+    if bool(len(results_rect_list)) - bool(len(labels_rect_list)):
         return 0.0
 
-    SI = get_union(results_rect_list).intersection(get_union(labels_rect_list)).area
-    S = get_union(results_rect_list + labels_rect_list).area
-    return SI / S
+    if not len(results_rect_list) and not len(labels_rect_list):
+        return 1.0
+
+    true_positives = 0
+    false_positives = 0
+
+    last_labels_rect_list = labels_rect_list[:]
+
+    for result_rect in results_rect_list:
+        ratio_list = [get_ratio(result_rect, label_rect) for label_rect in last_labels_rect_list]
+        max_ratio = max(ratio_list) if len(ratio_list) else 0.0
+        if max_ratio > float(THRESH):
+            last_labels_rect_list.remove(last_labels_rect_list[ratio_list.index(max_ratio)])
+            true_positives += 1
+        else:
+            false_positives += 1
+
+    true_negative = max(0, len(labels_rect_list) - false_positives)
+    return float(true_positives + true_negative) / (len(labels_rect_list) + len(results_rect_list))
 
 
 results_bboxes_data = get_bboxes_data(RESULTS_FILENAME)
 labels_bboxes_data = get_bboxes_data(LABELS_FILENAME)
 
-overlaps = [calculate_overlap_ratio(results_bboxes_data.get(frame, []), labels_bboxes_data.get(frame, []))
+accuracies = [calculate_accuracy(results_bboxes_data.get(frame, []), labels_bboxes_data.get(frame, []))
             for frame in set(results_bboxes_data.keys() + labels_bboxes_data.keys())]
-avg_overlap_ratio = sum(overlaps) / float(len(overlaps))
 
-print('Accuracy: {}%'.format(avg_overlap_ratio * 100.))
+avg_accuracy = sum(accuracies) / float(len(accuracies))
+
+print('Accuracy: {}%'.format(avg_accuracy * 100.))
