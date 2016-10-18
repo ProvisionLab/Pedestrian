@@ -56,27 +56,19 @@ Adapted by: Puttemans Steven - April 2016 - Vectorize the process to enable bett
 
 #include <fstream>
 #include <iostream>
-
-#if defined(_WIN32)
-   #include <direct.h>
-#else
-   #include <sys/stat.h>
-#endif
-
-using namespace std;
-using namespace cv;
+#include <iomanip>
 
 // Function prototypes
 void on_mouse(int, int, int, int, void*);
-vector<Rect> get_annotations(Mat);
+std::vector<cv::Rect> get_annotations(cv::Mat);
 
 // Public parameters
-Mat image;
+cv::Mat image;
 int roi_x0 = 0, roi_y0 = 0, roi_x1 = 0, roi_y1 = 0;
 bool start_draw = false, stop = false;
 
 // Window name for visualisation purposes
-const string window_name = "OpenCV Based Annotation Tool";
+const std::string window_name = "OpenCV Based Annotation Tool";
 
 // FUNCTION : Mouse response for selecting objects in images
 // If left button is clicked, start drawing a rectangle as long as mouse moves
@@ -84,7 +76,7 @@ const string window_name = "OpenCV Based Annotation Tool";
 void on_mouse(int event, int x, int y, int , void * )
 {
     // Action when left button is clicked
-    if(event == EVENT_LBUTTONDOWN)
+    if(event == cv::EVENT_LBUTTONDOWN)
     {
         if(!start_draw)
         {
@@ -99,27 +91,27 @@ void on_mouse(int event, int x, int y, int , void * )
     }
 
     // Action when mouse is moving and drawing is enabled
-    if((event == EVENT_MOUSEMOVE) && start_draw)
+    if((event == cv::EVENT_MOUSEMOVE) && start_draw)
     {
         // Redraw bounding box for annotation
-        Mat current_view;
+        cv::Mat current_view;
         image.copyTo(current_view);
-        rectangle(current_view, Point(roi_x0,roi_y0), Point(x,y), Scalar(0,0,255));
+        cv::rectangle(current_view, cv::Point(roi_x0,roi_y0), cv::Point(x,y), cv::Scalar(0,0,255));
         imshow(window_name, current_view);
     }
 }
 
 // FUNCTION : returns a vector of Rect objects given an image containing positive object instances
-vector<Rect> get_annotations(Mat input_image)
+std::vector<cv::Rect> get_annotations(cv::Mat input_image)
 {
-    vector<Rect> current_annotations;
+    std::vector<cv::Rect> current_annotations;
 
     // Make it possible to exit the annotation process
     stop = false;
 
     // Init window interface and couple mouse actions
-    namedWindow(window_name, WINDOW_AUTOSIZE);
-    setMouseCallback(window_name, on_mouse);
+    cv::namedWindow(window_name, cv::WINDOW_AUTOSIZE);
+    cv::setMouseCallback(window_name, on_mouse);
 
     image = input_image;
     imshow(window_name, image);
@@ -128,8 +120,8 @@ vector<Rect> get_annotations(Mat input_image)
     do
     {
         // Get a temporary image clone
-        Mat temp_image = input_image.clone();
-        Rect currentRect(0, 0, 0, 0);
+        cv::Mat temp_image = input_image.clone();
+        cv::Rect currentRect(0, 0, 0, 0);
 
         // Keys for processing
         // You need to select one for confirming a selection and one to continue to the next image
@@ -138,11 +130,10 @@ vector<Rect> get_annotations(Mat input_image)
         //	<n> = 110	  save added rectangles and show next image
         //      <d> = 100         delete the last annotation made
         //	<ESC> = 27        exit program
-        key_pressed = 0xFF & waitKey(0);
+        key_pressed = 0xFF & cv::waitKey(0);
         switch( key_pressed )
         {
         case 27:
-                //destroyWindow(window_name);
                 stop = true;
                 break;
         case 99:
@@ -184,9 +175,8 @@ vector<Rect> get_annotations(Mat input_image)
                 break;
         case 100:
                 // Remove the last annotation
-                if(current_annotations.size() > 0){
+                if(current_annotations.size() > 0)
                     current_annotations.pop_back();
-                }
                 break;
         default:
                 // Default case --> do nothing at all
@@ -201,19 +191,19 @@ vector<Rect> get_annotations(Mat input_image)
         }
 
         // Draw all the current rectangles onto the top image and make sure that the global image is linked
-        for(int i=0; i < (int)current_annotations.size(); i++){
-            rectangle(temp_image, current_annotations[i], Scalar(0,255,0), 1);
-        }
+        for(int i=0; i < (int)current_annotations.size(); i++)
+            rectangle(temp_image, current_annotations[i], cv::Scalar(0,255,0), 1);
+
         image = temp_image;
 
         // Force an explicit redraw of the canvas --> necessary to visualize delete correctly
-        imshow(window_name, image);
+        cv::imshow(window_name, image);
     }
     // Continue as long as the next image key has not been pressed
     while(key_pressed != 110);
 
     // Close down the window
-    destroyWindow(window_name);
+    cv::destroyWindow(window_name);
 
     // Return the data
     return current_annotations;
@@ -222,99 +212,85 @@ vector<Rect> get_annotations(Mat input_image)
 int main( int argc, const char** argv )
 {
     // If no arguments are given, then supply some information on how this tool works
-    if( argc == 1 ){
-        cout << "Usage: " << argv[0] << endl;
-        cout << " -images <folder_location> [example - /data/testimages/]" << endl;
-        cout << " -annotations <ouput_file> [example - /data/annotations.txt]" << endl;
-        cout << "TIP: Use absolute paths to avoid any problems with the software!" << endl;
+    if( argc == 1 )
+    {
+        std::cout << "Usage: " << argv[0] << std::endl;
+        std::cout << " -video <video file> [example - Leauto_20160829_164101A.MP4]" << std::endl;
+        std::cout << " -annotations <ouput_file> [example - /data/annotations.txt]" << std::endl;
+        std::cout << " -skip <frame skip> [example - 30]" << std::endl;
+        std::cout << "TIP: Use absolute paths to avoid any problems with the software!" << std::endl;
         return -1;
     }
 
     // Read in the input arguments
-    string image_folder;
-    string annotations_file;
+    std::string video_file;
+    std::string annotations_file;
+    unsigned int frame_skip = 0;
     for(int i = 1; i < argc; ++i )
     {
-        if( !strcmp( argv[i], "-images" ) )
+        if(!strcmp( argv[i], "-video" ))
         {
-            image_folder = argv[++i];
+            video_file = argv[++i];
         }
-        else if( !strcmp( argv[i], "-annotations" ) )
+        else if(!strcmp( argv[i], "-annotations" ))
         {
             annotations_file = argv[++i];
         }
+        else if(!strcmp( argv[i], "-skip" ))
+        {
+            std::stringstream str_stream;
+            str_stream << argv[++i];
+            str_stream >> frame_skip;
+        }
     }
 
-    // Check if the folder actually exists
-    // If -1 is returned then the folder actually exists, and thus you can continue
-    // In all other cases there was a folder creation and thus the folder did not exist
-    #if defined(_WIN32)
-    if(_mkdir(image_folder.c_str()) != -1){
-        // Generate an error message
-        cerr << "The image folder given does not exist. Please check again!" << endl;
-        // Remove the created folder again, to ensure a second run with same code fails again
-        _rmdir(image_folder.c_str());
-        return 0;
-    }
-    #else
-    if(mkdir(image_folder.c_str(), 0777) != -1){
-        // Generate an error message
-        cerr << "The image folder given does not exist. Please check again!" << endl;
-        // Remove the created folder again, to ensure a second run with same code fails again
-        remove(image_folder.c_str());
-        return 0;
-    }
-    #endif
+
 
     // Start by processing the data
-    // Return the image filenames inside the image folder
-    vector< vector<Rect> > annotations;
-    vector<String> filenames;
-    String folder(image_folder);
-    glob(folder, filenames);
+    std::map<int, std::vector<cv::Rect>> annotations;
 
-    // Loop through each image stored in the images folder
-    // Create and temporarily store the annotations
-    // At the end write everything to the annotations file
-    for (size_t i = 0; i < filenames.size(); i++){
-        // Read in an image
-        Mat current_image = imread(filenames[i]);
+    cv::VideoCapture cap(video_file);
+    assert(cap.isOpened());
 
-        // Check if the image is actually read - avoid other files in the folder, because glob() takes them all
-        // If not then simply skip this iteration
-        if(current_image.empty()){
-            continue;
-        }
+    for(int frame_num = 0; cap.grab(); ++frame_num)
+    {
+        if(!frame_skip || !(frame_num % frame_skip))
+        {
+            cv::Mat current_image;
+            bool ret = cap.retrieve(current_image);
+            assert(ret && !current_image.empty());
 
-        // Perform annotations & store the result inside the vectorized structure
-        vector<Rect> current_annotations = get_annotations(current_image);
-        annotations.push_back(current_annotations);
+            std::vector<cv::Rect> current_annotations = get_annotations(current_image);
 
-        // Check if the ESC key was hit, then exit earlier then expected
-        if(stop){
-            break;
+            if(!current_annotations.empty())
+            {
+                assert(annotations.find(frame_num) == annotations.end());
+                annotations.insert({frame_num, current_annotations});
+            }
         }
     }
 
     // When all data is processed, store the data gathered inside the proper file
     // This now even gets called when the ESC button was hit to store preliminary results
-    ofstream output(annotations_file.c_str());
-    if ( !output.is_open() ){
-        cerr << "The path for the output file contains an error and could not be opened. Please check again!" << endl;
+    std::ofstream output(annotations_file.c_str());
+    if (!output.is_open())
+    {
+        std::cerr << "The path for the output file contains an error and could not be opened. Please check again!"
+                  << std::endl;
         return 0;
     }
 
-    // Store the annotations, write to the output file
-    for(int i = 0; i < (int)annotations.size(); i++){
-        for(int j=0; j < (int)annotations[i].size(); j++){
-            Rect temp = annotations[i][j];
-            output << i << " "
-                   << temp.x << " " << temp.y << " "
-                   << temp.x + temp.width << " " << temp.y + temp.height
+    for(auto && i : annotations)
+    {
+        for(auto && j : i.second)
+        {
+            output << i.first << " "
+                   << j.x << " " << j.y << " "
+                   << j.x + j.width << " " << j.y + j.height
                    << std::endl;
         }
     }
 
-    destroyWindow(window_name);
+    cv::destroyAllWindows();
     return 0;
 }
