@@ -252,6 +252,7 @@ int main( int argc, const char** argv )
     cv::VideoCapture cap(video_file);
     assert(cap.isOpened());
 
+    int frame_count = 0;
     for(int frame_num = 0; cap.grab(); ++frame_num)
     {
         if(!frame_skip || !(frame_num % frame_skip))
@@ -267,6 +268,8 @@ int main( int argc, const char** argv )
                 assert(annotations.find(frame_num) == annotations.end());
                 annotations.insert({frame_num, current_annotations});
             }
+
+            ++frame_count;
         }
     }
 
@@ -280,16 +283,14 @@ int main( int argc, const char** argv )
         return 0;
     }
 
+
+    output << frame_count << std::endl;
     for(auto && i : annotations)
-    {
         for(auto && j : i.second)
-        {
             output << i.first << " "
                    << j.x << " " << j.y << " "
                    << j.x + j.width << " " << j.y + j.height
                    << std::endl;
-        }
-    }
 
     cv::destroyAllWindows();
     return 0;

@@ -3,24 +3,16 @@ import scipy.io as sio
 import copy
 import os
 import glob
-import pathlib2
+import random
 
-PATH_TO_DATA = "../data"
-PATH_TO_EXTRACT = "../extraction_data"
-IMG_SIZE = (640, 480)
+PATH_TO_DATA = 'data'
+#ANNOTATION_FILE_NAMES = ['V000.vbb', 'V001.vbb']
+ANNOTATION_FILE_NAMES = sorted(glob.glob('{}/*.vbb'.format(PATH_TO_DATA)))
+#VIDEO_FILE_NAMES = ['V000.seq', 'V001.seq']
+VIDEO_FILE_NAMES = sorted(glob.glob('{}/*.seq'.format(PATH_TO_DATA)))
+EXPORT_DIR_NAME = 'resized_imgs'
 
-
-def convert_bb(x, y, w, h):
-    dw = 1./IMG_SIZE[0]
-    dh = 1./IMG_SIZE[1]
-
-    x = (2.0 * x + w) / 2.0
-    y = (2.0 * y + h) / 2.0
-    x *= dw
-    w *= dw
-    y *= dh
-    h *= dh
-    return x, y, w, h
+IMG_SIZE = (448, 448)
 
 
 def parse_annotations(filename):
@@ -31,8 +23,8 @@ def parse_annotations(filename):
     def extract_params(obj):
         return [{'label_id': int(label_id[0][0]) - 1,  # MATLAB is 1-origin
                  'label': objLbl[int(label_id[0][0]) - 1],
-                 'pos': [round(x) for x in pos[0].tolist()],
-                 'posv': [round(x) for x in posv[0].tolist()]}
+                 'pos': [int(round(x)) for x in pos[0].tolist()],
+                 'posv': [int(round(x)) for x in posv[0].tolist()]}
                 for label_id, pos, posv in
                 zip(obj['id'][0], obj['pos'][0], obj['posv'][0])]
 
@@ -66,16 +58,47 @@ def images_with_bbs(image_list, annotations):
     image_list_with_bb = copy.deepcopy(image_list)
     for img, annotation in zip(image_list_with_bb, annotations):
         for bb_info in annotation:
-            text = '{}[{}]'.format(bb_info['label'], bb_info['label_id'])
-            pos = bb_info['pos']
-            cv2.rectangle(img,
-                          tuple(pos[:2]),
-                          (pos[0] + pos[2], pos[1] + pos[3]),
-                          (0, 255, 0),
-                          2)
+            if 'label' in bb_info:
+                text = '{}[{}]'.format(bb_info['label'], bb_info['label_id'])
+
+            if 'pos' in bb_info:
+                pos = bb_info['pos']
+                pt1 = tuple(pos[:2])
+                pt2 = (pos[0] + pos[2], pos[1] + pos[3])
+                cv2.rectangle(img, pt1, pt2, (255, 255, 255), 2)
+
+            if 'posv' in bb_info:
+                posv = bb_info['posv']
+                ptv1 = tuple(posv[:2])
+                ptv2 = (posv[0] + posv[2], posv[1] + posv[3])
+                cv2.rectangle(img, ptv1, ptv2, (0, 0, 255), 2)
+
+            img = cv2.resize(img, IMG_SIZE)
+
     return image_list_with_bb
 
+if not os.path.exists(EXPORT_DIR_NAME):
+    os.makedirs(EXPORT_DIR_NAME)
 
+for ann_filename, seq_filename in zip(ANNOTATION_FILE_NAMES, VIDEO_FILE_NAMES):
+    nonempty_frame_data = [(i, ann) for i, ann in enumerate(parse_annotations(ann_filename)) if len(ann)]
+
+    frames = [data[0] for data in nonempty_frame_data]
+    annotations = [data[1] for data in nonempty_frame_data]
+
+    img_with_bb_list = images_with_bbs(parse_seq(seq_filename, frames), annotations)
+
+    random.shuffle(img_with_bb_list)
+
+    stop = 10 if len(img_with_bb_list) > 10 else len(img_with_bb_list) - 1
+    for i, img in enumerate(img_with_bb_list[:stop]):
+        ann_basename = os.path.basename(os.path.splitext(ann_filename)[0])
+        image_path = '{}/{}_{}.png'.format(EXPORT_DIR_NAME, ann_basename, i)
+        cv2.imwrite(image_path, img)
+
+
+exit(0)
+'''
 annotation_set_paths = sorted(glob.glob(os.path.join(PATH_TO_DATA, 'annotations/set*')))
 seq_set_paths = sorted(glob.glob(os.path.join(PATH_TO_DATA, 'videos/set*')))
 
@@ -122,3 +145,4 @@ for annotation_set_dir, seq_set_dir in zip(annotation_set_paths, seq_set_paths):
             print('Processed {} and {}'.format(ann, seq))
 
 print('Extraction complete')
+'''
