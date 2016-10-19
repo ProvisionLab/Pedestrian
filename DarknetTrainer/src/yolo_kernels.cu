@@ -11,6 +11,7 @@ extern "C" {
 #include "box.h"
 #include "image.h"
 #include <sys/time.h>
+#include "constants.h"
 }
 
 #ifdef OPENCV
@@ -59,7 +60,7 @@ void *detect_in_thread(void *ptr)
     printf("\033[1;1H");
     printf("\nFPS:%.0f\n",fps);
     printf("Objects:\n\n");
-    draw_detections(det, l.side*l.side*l.n, demo_thresh, boxes, probs, voc_names, voc_labels, 4);
+    draw_detections(det, l.side*l.side*l.n, demo_thresh, boxes, probs, voc_names, voc_labels, NUM_CLASSES);
     return 0;
 }
 

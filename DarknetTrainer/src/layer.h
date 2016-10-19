@@ -4,6 +4,8 @@
 #include "activations.h"
 #include "stddef.h"
 
+struct network_state;
+
 struct layer;
 typedef struct layer layer;
 
@@ -29,6 +31,8 @@ typedef enum {
     BATCHNORM,
     NETWORK,
     XNOR,
+    REGION,
+    REORG,
     BLANK
 } LAYER_TYPE;
 
@@ -40,6 +44,12 @@ struct layer{
     LAYER_TYPE type;
     ACTIVATION activation;
     COST_TYPE cost_type;
+    void (*forward)   (struct layer, struct network_state);
+    void (*backward)  (struct layer, struct network_state);
+    void (*update)    (struct layer, int, float, float, float);
+    void (*forward_gpu)   (struct layer, struct network_state);
+    void (*backward_gpu)  (struct layer, struct network_state);
+    void (*update_gpu)    (struct layer, int, float, float, float);
     int batch_normalize;
     int shortcut;
     int batch;
@@ -70,6 +80,7 @@ struct layer{
     float saturation;
     float exposure;
     float shift;
+    float ratio;
     int softmax;
     int classes;
     int coords;
@@ -79,6 +90,8 @@ struct layer{
     int does_cost;
     int joint;
     int noadjust;
+    int reorg;
+    int log;
 
     float alpha;
     float beta;
@@ -100,9 +113,7 @@ struct layer{
     int *indexes;
     float *rand;
     float *cost;
-    float *filters;
-    char  *cfilters;
-    float *filter_updates;
+    char  *cweights;
     float *state;
     float *prev_state;
     float *forgot_state;
@@ -112,7 +123,7 @@ struct layer{
     float *concat;
     float *concat_delta;
 
-    float *binary_filters;
+    float *binary_weights;
 
     float *biases;
     float *bias_updates;
@@ -189,11 +200,9 @@ struct layer{
     float * save_delta_gpu;
     float * concat_gpu;
     float * concat_delta_gpu;
-    float * filters_gpu;
-    float * filter_updates_gpu;
 
     float *binary_input_gpu;
-    float *binary_filters_gpu;
+    float *binary_weights_gpu;
 
     float * mean_gpu;
     float * variance_gpu;
@@ -225,8 +234,8 @@ struct layer{
     #ifdef CUDNN
     cudnnTensorDescriptor_t srcTensorDesc, dstTensorDesc;
     cudnnTensorDescriptor_t dsrcTensorDesc, ddstTensorDesc;
-    cudnnFilterDescriptor_t filterDesc;
-    cudnnFilterDescriptor_t dfilterDesc;
+    cudnnFilterDescriptor_t weightDesc;
+    cudnnFilterDescriptor_t dweightDesc;
     cudnnConvolutionDescriptor_t convDesc;
     cudnnConvolutionFwdAlgo_t fw_algo;
     cudnnConvolutionBwdDataAlgo_t bd_algo;
