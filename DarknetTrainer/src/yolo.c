@@ -16,6 +16,7 @@ image retrieve_image_from_stream(CvCapture *cap);
 #include "constants.h"
 #include "data.h"
 #include "image.h"
+#include "box.h"
 
 char *voc_names[] = CLASS_NAMES;
 
@@ -417,6 +418,149 @@ void extract_yolo(char *cfgfile, char *weightfile, char *filename, float thresh,
     fclose(predicted_boxes_file);
 }
 
+void testextract_yolo(char *cfgfile, char *weightfile, float thresh, char *out_predictions_fname, char *out_trues_fname, int is_test)
+{
+    network net = parse_network_cfg(cfgfile);
+    load_weights(&net, weightfile);
+
+    detection_layer l = net.layers[net.n-1];
+    set_batch_network(&net, 1);
+    srand(2222222);
+    clock_t time;
+
+    float nms=.4;
+    box *boxes = calloc(l.side*l.side*l.n, sizeof(box));
+    float **probs = calloc(l.side*l.side*l.n, sizeof(float *));
+
+    int j;
+    for(j = 0; j < l.side*l.side*l.n; ++j) probs[j] = calloc(l.classes, sizeof(float *));
+
+    remove(out_predictions_fname);
+    FILE *predicted_boxes_file = fopen(out_predictions_fname, "a");
+    if (!predicted_boxes_file) {
+        printf("Error opening file!\n");
+    }
+
+    remove(out_trues_fname);
+    FILE *trues_boxes_file = fopen(out_trues_fname, "a");
+    if (!trues_boxes_file) {
+        printf("Error opening file!\n");
+    }
+
+    list *plist = get_paths(is_test ? TEST_IMAGES_PATHS_FILE : TRAIN_IMAGES_PATHS_FILE);
+    char **paths = (char **)list_to_array(plist);
+
+    fprintf(trues_boxes_file, "%d\n", plist->size);
+
+    int i;
+    for(i = 0; i < plist->size; ++i) {
+        char *path = paths[i];
+        printf("path: %s\n", path);
+
+        image im = load_image_color(path, 0, 0);
+        image sized = resize_image(im, net.w, net.h);
+        float *X = sized.data;
+
+        time = clock();
+        network_predict(net, X);
+        printf("I%05d: Predicted in %f seconds.\n", i, sec(clock() - time));
+        get_detection_boxes(l, 1, 1, thresh, probs, boxes, 0);
+        if (nms) do_nms_sort(boxes, probs, l.side * l.side * l.n, l.classes, nms);
+
+        int k;
+        for(k = 0; k < l.side * l.side * l.n; ++k) {
+            int class = max_index(probs[k], l.classes);
+            float prob = probs[k][class];
+            if(prob > thresh) {
+                box b = boxes[k];
+
+                int left  = (b.x-b.w/2.)*im.w;
+                int right = (b.x+b.w/2.)*im.w;
+                int top   = (b.y-b.h/2.)*im.h;
+                int bot   = (b.y+b.h/2.)*im.h;
+
+                if(left < 0) left = 0;
+                if(right > im.w-1) right = im.w-1;
+                if(top < 0) top = 0;
+                if(bot > im.h-1) bot = im.h-1;
+
+                fprintf(predicted_boxes_file, "%d %d %d %d %d\n", i, left, top, right, bot);
+            }
+        }
+
+        char labelpath[4096];
+        find_replace(path, "images", "labels", labelpath);
+        find_replace(labelpath, ".png", ".txt", labelpath);
+        find_replace(labelpath, ".jpg", ".txt", labelpath);
+        find_replace(labelpath, ".JPEG", ".txt", labelpath);
+
+        int num_labels = 0;
+        box_label *truth = read_boxes(labelpath, &num_labels);
+        for(j = 0; j < num_labels; ++j) {
+            box t = {truth[j].x, truth[j].y, truth[j].w, truth[j].h};
+
+            int left  = (t.x-t.w/2.)*im.w;
+            int right = (t.x+t.w/2.)*im.w;
+            int top   = (t.y-t.h/2.)*im.h;
+            int bot   = (t.y+t.h/2.)*im.h;
+
+            fprintf(trues_boxes_file, "%d %d %d %d %d\n", i, left, top, right, bot);
+        }
+
+        free_image(im);
+        free_image(sized);
+    }
+
+    fclose(predicted_boxes_file);
+    fclose(trues_boxes_file);
+}
+
+void extract_yolo_imgs(char *cfgfile, char *weightfile, char *filename, float thresh, int is_test)
+{
+    image *alphabet = load_alphabet();
+    network net = parse_network_cfg(cfgfile);
+    load_weights(&net, weightfile);
+
+    detection_layer l = net.layers[net.n-1];
+    set_batch_network(&net, 1);
+    srand(2222222);
+    clock_t time;
+
+    float nms=.4;
+    box *boxes = calloc(l.side*l.side*l.n, sizeof(box));
+    float **probs = calloc(l.side*l.side*l.n, sizeof(float *));
+
+    int j;
+    for(j = 0; j < l.side*l.side*l.n; ++j) probs[j] = calloc(l.classes, sizeof(float *));
+
+    list *plist = get_paths(is_test ? TEST_IMAGES_PATHS_FILE : TRAIN_IMAGES_PATHS_FILE);
+    char **paths = (char **)list_to_array(plist);
+
+    int i;
+    for(i = 0; i < plist->size; ++i) {
+        char *path = paths[i];
+        printf("path: %s\n", path);
+
+        image im = load_image_color(path, 0, 0);
+        image sized = resize_image(im, net.w, net.h);
+        float *X = sized.data;
+
+        time = clock();
+        network_predict(net, X);
+        printf("I%05d: Predicted in %f seconds.\n", i, sec(clock() - time));
+        get_detection_boxes(l, 1, 1, thresh, probs, boxes, 0);
+        if (nms) do_nms_sort(boxes, probs, l.side * l.side * l.n, l.classes, nms);
+        draw_detections(im, l.side*l.side*l.n, thresh, boxes, probs, voc_names, alphabet, NUM_CLASSES);
+
+        char buff[1024];
+        snprintf(buff, 1024, "predicted/I%05d.jpg", i);
+        save_image(im, buff);
+
+        free_image(im);
+        free_image(sized);
+    }
+}
+
 void run_yolo(int argc, char **argv)
 {
     char *prefix = find_char_arg(argc, argv, "-prefix", 0);
@@ -443,6 +587,30 @@ void run_yolo(int argc, char **argv)
         else {
 #ifdef OPENCV
             extract_yolo(cfg, weights, filename, thresh, frame_skip, "predicted_boxes.txt");
+#else
+            fprintf(stderr, "Extract needs OpenCV.\n");
+#endif
+        }
+    }
+    else if(0==strcmp(argv[2], "testextract")) {
+        if(argc < 5) {
+            fprintf(stderr, "usage: %s %s %s [cfg] [weights]\n", argv[0], argv[1], argv[2]);
+        }
+        else {
+#ifdef OPENCV
+            testextract_yolo(cfg, weights, thresh, "predictions.txt", "truth.txt", 1);
+#else
+            fprintf(stderr, "Extract needs OpenCV.\n");
+#endif
+        }
+    }
+    else if(0==strcmp(argv[2], "extractimgs")) {
+        if(argc < 5) {
+            fprintf(stderr, "usage: %s %s %s [cfg] [weights]\n", argv[0], argv[1], argv[2]);
+        }
+        else {
+#ifdef OPENCV
+            extract_yolo_imgs(cfg, weights, filename, thresh, 1);
 #else
             fprintf(stderr, "Extract needs OpenCV.\n");
 #endif
