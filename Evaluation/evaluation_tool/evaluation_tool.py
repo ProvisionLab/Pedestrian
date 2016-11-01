@@ -11,7 +11,6 @@ RESULTS_FILENAME = sys.argv[1]
 LABELS_FILENAME = sys.argv[2]
 THRESH = sys.argv[3]
 
-
 def get_boxes_data(filename, with_frame_count=False):
     boxes_data = {}
     frame_count = 0
@@ -38,9 +37,14 @@ def get_frame_acc_definitions(predicted_boxes, true_boxes):
     true_boxes_maxs = [sorted(p_boxes, key=(lambda b: lambda p_box: p_box.intersection(b).area)(t_box), reverse=True)
                        for t_box in t_boxes]
 
-    predicted_boxes_maxs =\
-        [t_boxes[(lambda values: values.index(min(values)))([maxs.index(p_box) for maxs in true_boxes_maxs])]
-         for p_box in p_boxes]
+    predicted_boxes_maxs = []
+    for p_box in p_boxes:
+        p_box_idxs = [maxs.index(p_box) for maxs in true_boxes_maxs]
+        p_box_min_idxs = [idx for idx, item in enumerate(p_box_idxs) if item == min(p_box_idxs)]
+
+        predicted_boxes_maxs.append(
+            max([t_boxes[i] for i in p_box_min_idxs],
+                key=(lambda b: lambda t_box: t_box.intersection(b).area)(p_box)))
 
     TP = 0
     FP = 0
